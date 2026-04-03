@@ -43,7 +43,7 @@ const createTransaction = async (req, res) => {
         res.status(201).json({
             success: true,
             message: "Transaction created successfully",
-            transactionData: transaction
+            data: transaction
         });
 
     } catch (error) {
@@ -58,7 +58,7 @@ const createTransaction = async (req, res) => {
 // getAllTransaction
 const getAllTransaction = async (req, res) => {
     try {
-        const { type, category, startDate, endDate } = req.query;
+        const { type, category, startDate, endDate, page, limit} = req.query;
 
         const filter = {};
 
@@ -86,12 +86,23 @@ const getAllTransaction = async (req, res) => {
             if (endDate) filter.date.$lte = new Date(endDate);    
         }
 
+        const pageNumber = parseInt(page) || 1;
+        const limitNumber = parseInt(limit) || 10;
+        const skip = (pageNumber - 1) * limitNumber;
+
+        const total = await Transaction.countDocuments(filter);
+
         const transactions = await Transaction.find(filter)
             .populate('createdBy', 'name email role')
-            .sort({ date: -1 }); 
+            .sort({ date: -1 })
+            .skip(skip)
+            .limit(limitNumber);
 
         res.status(200).json({
             success: true,
+            total,
+            page: pageNumber,
+            totalPages: Math.ceil(total/limitNumber),
             count: transactions.length,
             data: transactions
         });
@@ -153,7 +164,7 @@ const updateTransaction = async(req, res) => {
 
         if (type) {
             const validTypes = ['income', 'expense'];
-            if (!validTypes.includes(type)) {
+            if (!validTypes.includes(type.toLowerCase())) {
                 return res.status(400).json({
                     success: false,
                     message: "Type must be income or expense"
